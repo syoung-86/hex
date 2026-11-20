@@ -57,6 +57,7 @@ class HexAccessibilityService : AccessibilityService(), BubbleView.Listener {
         windowManager = getSystemService(WindowManager::class.java)
         bubbleSize = (76 * resources.displayMetrics.density).toInt()
         bubble = BubbleView(this, this)
+        instance = this
         scope.launch {
             Recorder.state.collect { state -> onRecorderState(state) }
         }
@@ -80,6 +81,7 @@ class HexAccessibilityService : AccessibilityService(), BubbleView.Listener {
         scope.cancel()
         if (ownsCapture) Recorder.stop()
         hideBubble()
+        if (instance === this) instance = null
         DebugLog.log("Bubble", "accessibility service destroyed")
         super.onDestroy()
     }
@@ -382,5 +384,9 @@ class HexAccessibilityService : AccessibilityService(), BubbleView.Listener {
     companion object {
         private const val PREFS = "hex.bubble"
         private const val UNDO_MS = 8_000L
+
+        @Volatile
+        var instance: HexAccessibilityService? = null
+            private set
     }
 }

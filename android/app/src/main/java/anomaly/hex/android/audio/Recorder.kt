@@ -37,6 +37,7 @@ object Recorder {
 
     @Volatile private var thread: Thread? = null
     @Volatile private var record: AudioRecord? = null
+    @Volatile private var discard = false
 
     @SuppressLint("MissingPermission") // the caller checks RECORD_AUDIO before start
     @Synchronized
@@ -78,6 +79,7 @@ object Recorder {
         }
 
         record = recorder
+        discard = false
         _state.value = State(phase = Phase.Recording)
         DebugLog.log("Audio", "recording ${file.name}")
         thread = Thread({ capture(recorder, file) }, "hex-audio").also { it.start() }
@@ -87,6 +89,13 @@ object Recorder {
     fun stop() {
         thread?.interrupt()
         runCatching { record?.stop() }
+    }
+
+    /** Stops and throws the clip away; no Saved state and no file. */
+    @Synchronized
+    fun cancel() {
+        discard = true
+        stop()
     }
 
     fun acknowledge() {
@@ -136,7 +145,12 @@ object Recorder {
             record = null
 
             val elapsed = SystemClock.elapsedRealtime() - startedAt
-            if (total < MIN_SAMPLES) {
+            if (discard) {
+                file.delete()
+                discard = false
+                _state.value = State(phase = Phase.Idle)
+                DebugLog.log("Audio", "cancelled ${file.name}")
+            } else if (total < MIN_SAMPLES) {
                 file.delete()
                 _state.value = State(
                     phase = Phase.Failed,

@@ -1,13 +1,12 @@
 # Android Plan (personal build)
 
-**Status:** M0, M1, and the M2 bubble work on the 9a. Capture and the
-foreground service work; Parakeet TDT-CTC 110M transcribes on-device (987 ms
-cold load, 36–55× realtime, +179 MB RSS); the bubble inserts and undoes in
-Hex's test field, WhatsApp, and Gmail, including a fix for composers that
-expose their placeholder as text. Password suppression and app switching are
-the remaining M2 checks. The work log, measured numbers, and device checklist
-live in [`../../android/HANDOFF.md`](../../android/HANDOFF.md). This is a
-personal, single-device build for one Pixel 9a,
+**Status:** M0, M1, and M2 work on the 9a: capture and the foreground service,
+on-device Parakeet transcription, and the accessibility bubble with insertion
+and undo in Hex, WhatsApp, and Gmail. M3's command surface is built (local
+grammar, command screen, "Hex Commands" launcher) with 12 unit tests and lint
+passing; its device run is pending. The work log, measured numbers, and device
+checklist live in [`../../android/HANDOFF.md`](../../android/HANDOFF.md). This
+is a personal, single-device build for one Pixel 9a,
 installed by `adb` and used by nobody else. It is not a Hex platform, has no
 distribution channel, no updater, and no support surface. Nothing here changes
 the desktop or iOS contracts, and nothing here ships in a release.
@@ -17,12 +16,13 @@ telemetry, no network permission in v1.
 
 ## The Goal
 
-Hold something, talk, and the words land at the cursor in whatever app is open.
+Hold something, talk, and either the words land at the cursor in whatever app
+is open, or Hex performs the action you asked for.
 Everything runs on the phone. Activation has to work with only a power button
 and a volume rocker, and text insertion has to work without switching keyboards.
 
-Success is one sentence: **for a week I dictate with Hex on the 9a and stop
-reaching for Gboard's microphone.**
+Success is one sentence: **for a week I dictate and run commands with Hex on
+the 9a and stop reaching for Gboard's microphone or Google's assistant.**
 
 ## Device Contract
 
@@ -74,9 +74,16 @@ never downloaded, in v1.
 trigger because it keeps input focus. Quick Tap, the assistant role, and volume
 hold are additions to test in week one; see [Activation](#activation).
 
-**D7. Scope is dictation only.** No History, no Output steps, no user scripts,
-no Meetings, no Annotate, no CLI/SDK, no sync. One "undo last insert" is enough
-memory for v1.
+**D7. Scope is dictation and commands.** No History, no Output steps, no user
+scripts, no Meetings, no Annotate, no CLI/SDK, no sync. One "undo last insert"
+is enough memory for v1.
+
+**D8. Commands are a separate mode, not an inference.** The bubble writes; the
+**Hex Commands** surface acts. Guessing from a sentence would turn ordinary
+text into an action, and commands must work when no text field is focused, so
+they get their own trigger and a local grammar. Calls open the dialer;
+nothing sends, buys, or deletes by itself, and the parser never calls a
+network or a model.
 
 ## Architecture
 
@@ -359,9 +366,17 @@ fix for composers that expose their placeholder as text. A password field and
 switching apps mid-dictation are still open; M2 is not done until items 3–6 in
 `android/README.md` pass.
 
-**M3 — Activation (2–3 days).** Quick Tap, QS tile, notification action,
-volume-hold, and (optionally) the assistant role. Evidence: each trigger
-recorded from a cold process, with the field still focused on completion.
+**M3 — Commands and activation (3–5 days).** A separate command surface with a
+local grammar for timers, alarms, apps, the dialer, directions, search, and
+system actions; Quick Tap through a "Hex Commands" launcher alias, then the QS
+tile, notification action, volume-hold, and assistant role. Evidence: a voice
+timer starts, "open Chrome" launches it, the dialer opens prefilled, a
+screenshot is saved, and a plain sentence performs no action.
+
+Built: `CommandActivity` + `CommandParser` + `CommandRunner`, the "Hex
+Commands" launcher alias, and a typed test field; 12 unit tests and lint pass.
+The command screen recorded its first utterance but the phone locked before it
+processed, so the device run is still open.
 
 **M4 — Polish (3–5 days).** Warm/cold policy, styles and spacing, error and
 recovery states, setup screen, debug export, battery check. Evidence: a day of

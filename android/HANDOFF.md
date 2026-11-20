@@ -1,11 +1,12 @@
 # Android M0 handoff
 
 **Date:** 2026-11-20
-**State:** M0, M1, and M2 work on the 9a. The bubble inserts at the cursor in
-Hex's test field, WhatsApp, and Gmail, and undo restores the field. A composer
-placeholder is no longer treated as text. Password fields and app switching are
-the remaining M2 checks. This file is the work log, the evidence, and the place
-to record the device results.
+**State:** M0–M2 work on the 9a: capture, on-device transcription, and the
+accessibility bubble insert and undo in Hex, WhatsApp, and Gmail. M3's command
+mode is built (local grammar, command screen, "Hex Commands" launcher) and its
+12 unit tests and lint pass; the device commands are waiting for an unlock.
+This file is the work log, the evidence, and the place to record the device
+results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -40,9 +41,11 @@ android/
   app/                      one module
     .../accessibility/      Inserter: focus, splice, clipboard fallback
     .../audio/              WavFile, Levels, Recorder, Recordings
+    .../commands/           CommandParser, CommandRunner
     .../engine/             Engine (sherpa-onnx, Parakeet CTC)
     .../service/            CaptureService, HexAccessibilityService, BubbleView
-    .../ui/                 HexTheme, HexApp, DotMeter
+    .../ui/                 HexTheme, HexApp, DotMeter, CommandScreen
+    .../CommandActivity.kt  command listening surface
     .../HexApplication.kt   crash logging
     .../DebugLog.kt         bounded in-memory log + logcat
 ```
@@ -58,6 +61,10 @@ and Unload/Refresh. It cannot insert text or show a bubble yet.
 M2 adds: the accessibility service, the `TYPE_ACCESSIBILITY_OVERLAY` bubble,
 focus and password handling, `ACTION_SET_TEXT` insertion with a clipboard
 fallback, eight-second undo, and the setup card's test field.
+
+M3 adds: a separate command surface, a local command grammar, intent execution
+for timers, alarms, apps, the dialer, directions, search, and system actions,
+and a "Hex Commands" launcher for Quick Tap.
 
 ## Verified here (Linux, no phone attached)
 
@@ -93,6 +100,10 @@ cd android
   `isAccessibilityTool="true"`; `adb shell settings put secure
   enabled_accessibility_services` is rejected for this sideloaded build, so
   the on/off toggle has to be manual
+- M3: `assembleDebug`, 12 unit tests (6 audio + 6 command parser), and
+  `lintDebug` (0 errors, 15 warnings) pass. The command activity and the
+  "Hex Commands" launcher alias are installed; `SET_ALARM` is the only new
+  permission and `INTERNET` is still absent
 
 Not verified yet: the bubble and insertion flow (service not enabled),
 screen-locked capture, Bluetooth route behavior, and battery cost.
@@ -129,6 +140,12 @@ screen-locked capture, Bluetooth route behavior, and battery cost.
 | Password field hides the bubble | not tried |
 | Undo restores the field | pass (test field, Gmail) |
 | Switch apps mid-dictation | not tried |
+| Command: timer by voice | pending |
+| Command: open an app | pending |
+| Command: dialer | pending |
+| Command: screenshot | pending |
+| Command: unknown inserts nothing | pending |
+| Typed command harness | pending |
 
 ### First device run (2026-11-20)
 
@@ -301,8 +318,38 @@ Known limits: a WAV round-trip rather than live PCM; no VAD auto-stop; undo only
 after `ACTION_SET_TEXT`; the clipboard fallback overwrites the user's clipboard;
 switching apps mid-dictation can end in `Copied` rather than insertion.
 
-Next is M3 (activation), then M4 (polish), with the order and evidence defined
-in the plan.
+## M3 commands (built, device test pending)
+
+The distinction is explicit: the bubble writes, the command surface acts. A
+sentence that sounds like a command never becomes one by accident.
+
+Design:
+
+- `CommandActivity` is a separate, full-screen listening surface. It records
+  one utterance, stops after ~0.9 s of silence (4 s with no speech at all, 12 s
+  hard cap), transcribes with the same engine, parses, executes, shows
+  "Done" or "No command", and finishes after 2.2 s.
+- `CommandParser` is a local grammar (no model, no network): timers, alarms,
+  open app, dial, navigate, search, home/back, screenshot, play/pause, volume.
+  Anything else is `Unknown`; nothing is inserted.
+- `CommandRunner` uses platform intents: `AlarmClock.ACTION_SET_TIMER` and
+  `ACTION_SET_ALARM`, launcher intents for apps, `ACTION_DIAL` (the dialer, not
+  a call), Maps navigation with a geo fallback, web search, accessibility
+  global actions, media keys, and stream volume.
+- The trigger is a **Hex Commands** launcher alias, so Quick Tap can open it
+  (Settings → System → Gestures → Quick Tap → Open app → Hex Commands), plus
+  the Commands card's **Speak a command**.
+- The same card has a **Test a command** field and **Run** button; it exercises
+  the parser and executor without the microphone, which is how the intents are
+  verified from a desk.
+
+Device plan (after unlocking): timer by voice, "open Chrome", "call 555 1234",
+"take a screenshot", "I love you" producing no action, and the typed harness.
+The first launch recorded 4 s of silence and saved the WAV, but the phone locked
+before the screen processed it, so the device run is still open.
+
+After that, M4 is activation (QS tile, assistant role, volume hold) and M5 is
+polish, with the order and evidence defined in the plan.
 
 ## Open items
 
@@ -331,3 +378,6 @@ in the plan.
   two insertions at the cursor and a working undo.
 - 2026-11-20: fixed composer placeholders exposed as field text (WhatsApp's
   "Message"); verified insertion and undo in WhatsApp and Gmail.
+- 2026-11-20: built M3 commands: a separate command surface, the local
+  grammar and runner, the "Hex Commands" launcher alias, and a typed harness;
+  12 unit tests and lint pass. Device commands await an unlock.

@@ -65,11 +65,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import anomaly.hex.android.BuildConfig
+import anomaly.hex.android.CommandActivity
 import anomaly.hex.android.DebugLog
 import anomaly.hex.android.audio.Recorder
 import anomaly.hex.android.audio.Recording
 import anomaly.hex.android.audio.Recordings
 import anomaly.hex.android.audio.WavFile
+import anomaly.hex.android.commands.CommandParser
+import anomaly.hex.android.commands.CommandRunner
 import anomaly.hex.android.engine.Engine
 import anomaly.hex.android.service.CaptureService
 import kotlinx.coroutines.Dispatchers
@@ -122,6 +125,8 @@ fun HexApp() {
     var engineTick by remember { mutableIntStateOf(0) }
     var transcription by remember { mutableStateOf(TranscribeState()) }
     var testText by remember { mutableStateOf("") }
+    var commandText by remember { mutableStateOf("") }
+    var commandResult by remember { mutableStateOf<String?>(null) }
     val scope = rememberCoroutineScope()
 
     fun stopPlayback() {
@@ -254,7 +259,7 @@ fun HexApp() {
                     color = HexColors.textBase,
                 )
                 Spacer(Modifier.width(10.dp))
-                Chip("M2 · bubble")
+                Chip("M3 · commands")
                 Spacer(Modifier.weight(1f))
                 Text(
                     Build.MODEL,
@@ -336,6 +341,72 @@ fun HexApp() {
                         focusedLabelColor = HexColors.textMuted,
                         unfocusedLabelColor = HexColors.textFaint,
                     ),
+                )
+            }
+
+            SectionCard("Commands") {
+                Text(
+                    "Commands act instead of writing. Hex performs them; nothing is inserted.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textMuted,
+                )
+                Text(
+                    "“set a timer for five minutes” · “open WhatsApp” · “call 555 1234” · " +
+                        "“navigate to home” · “take a screenshot”",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textFaint,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallButton("Speak a command") {
+                        context.startActivity(Intent(context, CommandActivity::class.java))
+                    }
+                }
+                OutlinedTextField(
+                    value = commandText,
+                    onValueChange = { commandText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Test a command") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = HexColors.textBase,
+                        unfocusedTextColor = HexColors.textBase,
+                        focusedContainerColor = HexColors.layer02,
+                        unfocusedContainerColor = HexColors.layer02,
+                        focusedBorderColor = HexColors.borderStrong,
+                        unfocusedBorderColor = HexColors.borderWeak,
+                        cursorColor = HexColors.accent,
+                        focusedLabelColor = HexColors.textMuted,
+                        unfocusedLabelColor = HexColors.textFaint,
+                    ),
+                )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    SmallButton("Run", enabled = commandText.isNotBlank()) {
+                        val outcome = CommandRunner.run(
+                            context,
+                            CommandParser.parse(commandText),
+                        )
+                        commandResult = outcome.message
+                    }
+                    Spacer(Modifier.width(10.dp))
+                    commandResult?.let { message ->
+                        Text(
+                            message,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = HexColors.textBase,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
+                }
+                Text(
+                    "Quick Tap: Settings → System → Gestures → Quick Tap → Open app → " +
+                        "Hex Commands.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textMuted,
+                )
+                Text(
+                    "Back and screenshots use the accessibility service.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textFaint,
                 )
             }
 

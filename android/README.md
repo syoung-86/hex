@@ -19,6 +19,8 @@ What works:
   real-time timings shown under each recording
 - an accessibility bubble over any focused text field: hold to talk, release to
   insert, tap for hands-free, tap after insertion to undo
+- a separate command mode: one utterance, a local grammar, and an action
+  (timer, alarm, app, dialer, directions, search, system)
 
 The bubble is verified in Hex's own test field, including undo. It is still to
 be tried in another app, a password field, and while switching apps; those are
@@ -111,6 +113,34 @@ it copied. Password, OTP, and card fields never show the bubble.
 If it misbehaves, `adb logcat -s HexM0` names the path (`inserted`, `pasted`,
 `copied`, or the error).
 
+## M3: commands
+
+Commands are explicit, not inferred: the bubble writes, **Hex Commands** acts.
+A sentence that sounds like a command never becomes one by accident.
+
+Open it from the Commands card's **Speak a command**, the **Hex Commands** entry
+in the app drawer, or Quick Tap (Settings → System → Gestures → Quick Tap →
+Open app → Hex Commands). It records one utterance, stops after about 0.9 s of
+silence (12 s cap), and performs an action. It never inserts text.
+
+- timers: "set a timer for five minutes", "timer 90 seconds"
+- alarms: "set an alarm for 7:30 am", "wake me up at 7 pm"
+- apps: "open WhatsApp", "launch Chrome"
+- calls: "call 555 1234" — this opens the dialer; it never dials by itself
+- directions: "navigate to the nearest coffee"
+- search: "search for weather tomorrow"
+- system: "go home", "back", "take a screenshot", "pause music",
+  "volume up", "volume down"
+
+The grammar is local and deterministic (no network, no model), and a command
+that does not match says so instead of guessing. The card's **Test a command**
+field runs the exact same parser and executor without the microphone, which is
+how the intents are verified from a desk.
+
+`Back`, `Home`, and `take a screenshot` use the accessibility service; the
+other actions use ordinary Android intents. The Clock app handles timers and
+alarms, and any launcher app can be opened by name.
+
 ## Device checklist
 
 M0:
@@ -154,6 +184,16 @@ M1:
 5. Undo restores the field exactly, including its previous selection.
 6. Switching apps mid-dictation copies instead of inserting into the wrong
    field.
+
+### M3 (commands)
+
+1. Quick Tap opens **Hex Commands**, the command screen listens, and "set a
+   timer for ten seconds" starts a timer in the Clock app.
+2. "open Chrome" launches Chrome; "call 555 1234" opens the dialer prefilled.
+3. "take a screenshot" saves one (accessibility on), and "go home" returns
+   home.
+4. A plain sentence ("I love you") shows **No command** and inserts nothing.
+5. The card's **Test a command** field produces the same result as speaking.
 
 Pull a debuggable build's files:
 
