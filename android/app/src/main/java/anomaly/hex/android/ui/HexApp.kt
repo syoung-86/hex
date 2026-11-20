@@ -43,6 +43,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -63,7 +64,12 @@ import anomaly.hex.android.DebugLog
 import anomaly.hex.android.audio.Recorder
 import anomaly.hex.android.audio.Recording
 import anomaly.hex.android.audio.Recordings
+import anomaly.hex.android.audio.WavFile
+import anomaly.hex.android.engine.Engine
 import anomaly.hex.android.service.CaptureService
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.util.Locale
 
@@ -107,6 +113,9 @@ fun HexApp() {
     var recordings by remember { mutableStateOf(Recordings.list(context)) }
     var playingFile by remember { mutableStateOf<File?>(null) }
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
+    var engineTick by remember { mutableIntStateOf(0) }
+    var transcription by remember { mutableStateOf(TranscribeState()) }
+    val scope = rememberCoroutineScope()
 
     fun stopPlayback() {
         player?.release()
@@ -154,6 +163,49 @@ fun HexApp() {
         Toast.makeText(context, "Log copied", Toast.LENGTH_SHORT).show()
     }
 
+    fun copyText(text: String) {
+        val clipboard = context.getSystemService(ClipboardManager::class.java)
+        clipboard.setPrimaryClip(ClipData.newPlainText("Hex transcript", text))
+        Toast.makeText(context, "Transcript copied", Toast.LENGTH_SHORT).show()
+    }
+
+    fun transcribe(recording: Recording) {
+        if (transcription.running) return
+        transcription = TranscribeState(file = recording.file, running = true)
+        scope.launch {
+            val outcome = withContext(Dispatchers.IO) {
+                runCatching {
+                    val samples = WavFile.decodePcm16(recording.file)
+                    Engine.transcribe(context.applicationContext, samples)
+                }
+            }
+            engineTick++
+            transcription = outcome.fold(
+                onSuccess = { result ->
+                    DebugLog.log(
+                        "Engine",
+                        "transcribed ${result.audioMs} ms in ${result.runMs} ms " +
+                            "(load ${result.loadMs} ms, ${result.text.length} chars)",
+                    )
+                    TranscribeState(
+                        file = recording.file,
+                        text = result.text,
+                        loadMs = result.loadMs,
+                        runMs = result.runMs,
+                        audioMs = result.audioMs,
+                    )
+                },
+                onFailure = { error ->
+                    DebugLog.log("Engine", "failed: ${error.message}")
+                    TranscribeState(
+                        file = recording.file,
+                        error = error.message ?: error.javaClass.simpleName,
+                    )
+                },
+            )
+        }
+    }
+
     fun record() {
         when {
             recorder.phase == Recorder.Phase.Recording -> Recorder.stop()
@@ -195,7 +247,7 @@ fun HexApp() {
                     color = HexColors.textBase,
                 )
                 Spacer(Modifier.width(10.dp))
-                Chip("M0 · capture")
+                Chip("M1 · on-device")
                 Spacer(Modifier.weight(1f))
                 Text(
                     Build.MODEL,
@@ -316,12 +368,57 @@ fun HexApp() {
                         RecordingRow(
                             recording = recording,
                             playing = playingFile == recording.file,
+                            transcribing = transcription.running &&
+                                transcription.file == recording.file,
+                            result = transcription.takeIf {
+                                it.file == recording.file && !it.running
+                            },
                             onPlay = {
                                 if (playingFile == recording.file) stopPlayback() else play(recording)
                             },
                             onShare = { share(recording) },
+                            onTranscribe = { transcribe(recording) },
+                            onCopy = {
+                                transcription.text
+                                    .takeIf { it.isNotBlank() }
+                                    ?.let(::copyText)
+                            },
                         )
                     }
+                }
+            }
+
+            val engineInstalled = remember(engineTick) { Engine.installed(context) }
+            val engineStatus = remember(engineTick) { Engine.status(context) }
+            SectionCard(
+                title = "Engine",
+                trailing = { Chip(if (engineInstalled) "ready" else "model missing") },
+            ) {
+                StatusRow(
+                    title = "Parakeet TDT-CTC 110M",
+                    detail = engineStatus,
+                    ok = engineInstalled,
+                )
+                Text(
+                    "files/models/parakeet-ctc-110m/ · model.int8.onnx (131 MB) + tokens.txt",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textFaint,
+                )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SmallButton(
+                        "Transcribe last",
+                        enabled = recordings.isNotEmpty() && !transcription.running,
+                    ) {
+                        recordings.firstOrNull()?.let(::transcribe)
+                    }
+                    SmallButton(
+                        "Unload",
+                        enabled = engineStatus.startsWith("Loaded"),
+                    ) {
+                        Engine.release()
+                        engineTick++
+                    }
+                    SmallButton("Refresh") { engineTick++ }
                 }
             }
 
@@ -459,29 +556,95 @@ private fun StatusRow(
 private fun RecordingRow(
     recording: Recording,
     playing: Boolean,
+    transcribing: Boolean,
+    result: TranscribeState?,
     onPlay: () -> Unit,
     onShare: () -> Unit,
+    onTranscribe: () -> Unit,
+    onCopy: () -> Unit,
 ) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Column(Modifier.weight(1f)) {
-            Text(
-                formatClock(recording.durationMs),
-                fontFamily = FontFamily.Monospace,
-                fontSize = 15.sp,
-                color = HexColors.textBase,
-            )
-            Text(
-                "${formatBytes(recording.sizeBytes)} · ${recording.name}",
-                style = MaterialTheme.typography.bodySmall,
-                color = HexColors.textFaint,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+    Column {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                Text(
+                    formatClock(recording.durationMs),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 15.sp,
+                    color = HexColors.textBase,
+                )
+                Text(
+                    "${formatBytes(recording.sizeBytes)} · ${recording.name}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textFaint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+            }
+            TextButton(onClick = onPlay) { Text(if (playing) "Stop" else "Play") }
+            TextButton(onClick = onShare) { Text("Share") }
+            TextButton(onClick = onTranscribe, enabled = !transcribing) {
+                Text(if (transcribing) "…" else "Transcribe")
+            }
         }
-        TextButton(onClick = onPlay) { Text(if (playing) "Stop" else "Play") }
-        TextButton(onClick = onShare) { Text("Share") }
+        result?.let { state ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 4.dp, bottom = 6.dp)
+                    .clip(RoundedCornerShape(11.dp))
+                    .background(HexColors.layer02)
+                    .padding(10.dp),
+                verticalArrangement = Arrangement.spacedBy(6.dp),
+            ) {
+                when {
+                    state.error != null -> Text(
+                        state.error,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = HexColors.danger,
+                    )
+                    state.text.isBlank() -> Text(
+                        "No speech detected.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = HexColors.textMuted,
+                    )
+                    else -> {
+                        Text(
+                            state.text,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = HexColors.textBase,
+                        )
+                        Text(
+                            timing(state),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = HexColors.textFaint,
+                        )
+                        TextButton(onClick = onCopy) { Text("Copy text") }
+                    }
+                }
+            }
+        }
     }
 }
+
+private fun timing(state: TranscribeState): String {
+    val speed = if (state.runMs > 0) {
+        state.audioMs.toDouble() / state.runMs
+    } else {
+        0.0
+    }
+    return "${state.runMs} ms for ${state.audioMs} ms audio · " +
+        "${"%.1f".format(Locale.US, speed)}× realtime · load ${state.loadMs} ms"
+}
+
+private data class TranscribeState(
+    val file: File? = null,
+    val running: Boolean = false,
+    val text: String = "",
+    val error: String? = null,
+    val loadMs: Long = 0,
+    val runMs: Long = 0,
+    val audioMs: Long = 0,
+)
 
 @Composable
 private fun KeyValue(key: String, value: String) {

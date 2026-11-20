@@ -23,7 +23,12 @@ android {
         minSdk = 33
         targetSdk = 35
         versionCode = 1
-        versionName = "0.1.0-m0"
+        versionName = "0.1.0-m1"
+
+        // Personal Pixel 9a build. sherpa-onnx ships every ABI; keep one.
+        ndk {
+            abiFilters += "arm64-v8a"
+        }
     }
 
     signingConfigs {
@@ -76,6 +81,9 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.10.1")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.8.7")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
+
+    // On-device ASR. Prebuilt arm64 natives; the model is imported separately.
+    implementation("com.github.k2-fsa.sherpa-onnx:sherpa-onnx:v1.13.5")
 
     implementation(platform("androidx.compose:compose-bom:2025.02.00"))
     implementation("androidx.compose.ui:ui")

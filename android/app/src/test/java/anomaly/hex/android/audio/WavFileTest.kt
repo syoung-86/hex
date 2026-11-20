@@ -2,6 +2,7 @@ package anomaly.hex.android.audio
 
 import org.junit.Assert.assertEquals
 import org.junit.Test
+import java.io.File
 
 class WavFileTest {
     @Test
@@ -33,6 +34,25 @@ class WavFileTest {
         assertEquals(0xFFFF, wav.le16(WavFile.HEADER_BYTES + 4))
         assertEquals(0x7FFF, wav.le16(WavFile.HEADER_BYTES + 6))
         assertEquals(0x8000, wav.le16(WavFile.HEADER_BYTES + 8))
+    }
+
+    @Test
+    fun decode_round_trips_pcm_samples() {
+        val samples = shortArrayOf(0, 1000, -1000, Short.MAX_VALUE, Short.MIN_VALUE)
+        val file = File.createTempFile("hex-wav", ".wav")
+        try {
+            file.writeBytes(WavFile.encode(samples))
+            val decoded = WavFile.decodePcm16(file)
+
+            assertEquals(samples.size, decoded.size)
+            assertEquals(0f, decoded[0], 0.0001f)
+            assertEquals(1000 / 32768f, decoded[1], 0.0001f)
+            assertEquals(-1000 / 32768f, decoded[2], 0.0001f)
+            assertEquals(1f, decoded[3], 0.0001f)
+            assertEquals(-1f, decoded[4], 0.0001f)
+        } finally {
+            file.delete()
+        }
     }
 
     private fun ByteArray.ascii(offset: Int, length: Int): String =

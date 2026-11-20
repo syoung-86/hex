@@ -3,8 +3,10 @@
 **Date:** 2026-11-20
 **State:** M0 is installed on the 9a and recording works (the owner recorded a
 clip and confirmed it). Backgrounded recording with the foreground service also
-passes. The remaining device checks are still open. This file is the work log,
-the evidence, and the place to record the device results.
+passes. M1's engine is wired, the Parakeet CTC model is pushed to the app's
+private storage, and the APK builds; the transcription measurement is waiting
+for the phone to reconnect. This file is the work log, the evidence, and the
+place to record the device results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -22,6 +24,8 @@ the evidence, and the place to record the device results.
 | Default model | Parakeet TDT-CTC 110M int8; 0.6B v3 is the optional accuracy model |
 | Scope | Dictation only: no history, output steps, scripts, meetings, CLI, sync |
 | Package | `anomaly.hex.android`, no `INTERNET` permission |
+| Speech model | Parakeet TDT-CTC 110M int8, 131 MB, pushed with `adb` (not in the APK) |
+| Runtime | sherpa-onnx `v1.13.5` via JitPack, arm64-v8a only |
 
 The long version, including the activation trade-offs and the risk table, is in
 the plan.
@@ -36,6 +40,7 @@ android/
   scripts/doctor.sh         device, service, permissions, files, log
   app/                      one module
     .../audio/              WavFile, Levels, Recorder, Recordings
+    .../engine/             Engine (sherpa-onnx, Parakeet CTC)
     .../service/            CaptureService (microphone FGS)
     .../ui/                 HexTheme, HexApp, DotMeter
     .../HexApplication.kt   crash logging
@@ -44,8 +49,11 @@ android/
 
 M0 can: request mic/notifications, record 16 kHz mono WAVs (60 s cap, 0.3 s
 minimum), show a rolling level meter, play/share recordings, run the
-foreground service, and show a debug log. It cannot transcribe, insert text, or
-show a bubble yet.
+foreground service, and show a debug log.
+
+M1 adds: Parakeet TDT-CTC 110M int8 in the app's private storage, a Transcribe
+action on every recording, a transcript block with load/run/real-time numbers,
+and Unload/Refresh. It cannot insert text or show a bubble yet.
 
 ## Verified here (Linux, no phone attached)
 
@@ -62,23 +70,30 @@ cd android
 ./gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug
 ```
 
-- `assembleDebug`: success, `app-debug.apk` 24,217,126 bytes
-- `testDebugUnitTest`: 5/5 pass (WAV header and sample round-trip, RMS/dB)
-- `lintDebug`: 0 errors, 8 warnings
+- `assembleDebug`: success, `app-debug.apk` 54 MB (31 MB of it sherpa-onnx's
+  arm64 natives; arm64-v8a is the only ABI)
+- `testDebugUnitTest`: 6/6 pass (WAV header, sample round-trip, WAV decode,
+  RMS/dB)
+- `lintDebug`: 0 errors
 - Merged manifest: `CaptureService` has `foregroundServiceType=0x80`
   (`microphone`); no `INTERNET` permission
 - Lint's one real complaint, a `MissingPermission` on `AudioRecord.Builder`,
   is suppressed with a comment because the UI checks `RECORD_AUDIO` first
+- sherpa-onnx `v1.13.5` resolved from JitPack; the AAR's
+  `libonnxruntime.so`, `libsherpa-onnx-jni.so`, and C/C++ libs package for
+  arm64
+- The model was pushed to the test phone and the sizes match; its hashes are
+  in the README and below
 
-Not verified: install, real mic levels, service survival in the background or
-with the screen locked, Bluetooth route behavior, and battery cost. Those need
-the phone.
+Not verified yet: on-device transcription (the phone disconnected before the
+measurement), screen-locked capture, Bluetooth route behavior, and battery
+cost.
 
 ## First run on the 9a
 
 1. Enable USB debugging, connect, accept the RSA prompt.
 2. `cd android && ./scripts/setup.sh`
-3. Run the checklist in [`README.md`](README.md#m0-checklist) and record the
+3. Run the checklist in [`README.md`](README.md#device-checklist) and record the
    answers below.
 4. `./scripts/doctor.sh` when something looks wrong; `adb logcat -s HexM0` for
    the in-app log mirrored to logcat.
@@ -94,6 +109,12 @@ the phone.
 | 90 s recording stops at 60 s (~1.92 MB) | not tried |
 | Recording works with the service stopped | not tried |
 | Bluetooth headset: which mic wins | not tried |
+| Engine card says ready / Installed · 131 MB | model files present; UI not re-checked |
+| Transcribe a speech clip | pending phone reconnect |
+| Cold load after Unload | pending |
+| Model `test_wavs/0.wav` | pending |
+| RSS after transcribe / after Unload | pending |
+| Ten dictations, no throttle/OOM | pending |
 
 ### First device run (2026-11-20)
 
@@ -147,21 +168,35 @@ One experienced Android dev: MVP (bubble, insertion, engine, styles) about
 the comparison: about 23k lines of Swift, 37 commits, July–November 2026. The
 engine is off the shelf; insertion and activation polish are the project.
 
-## Next: M1 (engine)
+## M1 engine (in progress)
 
-1. Add the JitPack repository and pin the sherpa-onnx dependency.
-2. Model import screen: `ACTION_OPEN_DOCUMENT_TREE` over a `hex-models`
-   directory, copy into `filesDir/models/`, verify size and SHA-256, store a
-   manifest. No downloader.
-3. `Engine` singleton: build an `OfflineRecognizer` with
-   `modelType = "nemo_transducer"`, `numThreads = 4`; load on IO, unload on trim
-   and after 5 minutes idle.
-4. A "Transcribe" action on M0's recordings, showing text, wall time, and cold
-   load time.
-5. Measure and record here: cold load, real-time factor for 3/5/15 s clips,
-   release-to-text, RSS (`adb shell dumpsys meminfo anomaly.hex.android`).
-6. Acceptance: a warm 5 s clip transcribes in under 1.2 s; no OOM on the 8 GB
-   device; then feed the live recorder's PCM into the same path.
+Done:
+
+- sherpa-onnx `v1.13.5` from JitPack; only `arm64-v8a` is packaged, which
+  keeps the debug APK at 54 MB.
+- Model: Parakeet TDT-CTC 110M int8, `model.int8.onnx` 131,652,171 B
+  (`9177a914…81fc1a`) and `tokens.txt` 9,953 B (`450e56bd…e6cd10`), from the
+  sherpa-onnx `asr-models` release; NVIDIA CC-BY-4.0.
+- The model is in `files/models/parakeet-ctc-110m/` in app-private storage, so
+  it survives updates and the app still has no `INTERNET` permission. It is
+  pushed with `adb` (commands in the README); SAF import comes later.
+- `Engine` singleton: `OfflineRecognizer` with
+  `OfflineNemoEncDecCtcModelConfig`, 4 threads, loaded on the IO dispatcher and
+  kept warm; **Unload** releases it. `WavFile.decodePcm16` feeds it.
+- UI: a **Transcribe** action on every recording, a transcript block with run,
+  audio, load, and × realtime, and an Engine card with ready/missing,
+  **Refresh**, **Unload**, and **Transcribe last**.
+
+Still to do on the phone:
+
+1. Reconnect, install the new APK, and tap **Refresh** (or force-stop and
+   relaunch) so the Engine card re-reads the files.
+2. Transcribe the owner's clip and the model's `test_wavs/0.wav`.
+3. Record cold load, run time, real-time factor, and RSS
+   (`adb shell dumpsys meminfo anomaly.hex.android`).
+4. Acceptance: a warm 5 s clip transcribes in under 1.2 s on the 9a.
+5. Then feed the live recorder's PCM straight into the engine instead of
+   round-tripping through a WAV.
 
 After that, M2 (accessibility bubble and insertion), then M3 (activation), with
 the order and evidence defined in the plan.
@@ -183,3 +218,5 @@ the order and evidence defined in the plan.
 - 2026-11-20: wrote the plan; scaffolded M0; verified build, tests, and lint;
   installed on the 9a; recorded foreground, backgrounded, and hand-made clips;
   background recording with the foreground service passed.
+- 2026-11-20: wired M1 (sherpa-onnx + Parakeet CTC 110M), pushed the model,
+  built the 54 MB APK; transcription measurement awaits the phone.

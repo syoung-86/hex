@@ -1,6 +1,7 @@
 package anomaly.hex.android.audio
 
 import java.io.ByteArrayOutputStream
+import java.io.File
 
 /** Minimal 16-bit mono PCM WAV writer. The whole clip is small enough to hold. */
 object WavFile {
@@ -45,5 +46,21 @@ object WavFile {
         write((value ushr 8) and 0xFF)
         write((value ushr 16) and 0xFF)
         write((value ushr 24) and 0xFF)
+    }
+
+    /** Reads a WAV written by [encode] (or any 16-bit PCM WAV) as -1..1 floats. */
+    fun decodePcm16(file: File): FloatArray {
+        val bytes = file.readBytes()
+        if (bytes.size <= HEADER_BYTES) return FloatArray(0)
+        val frames = (bytes.size - HEADER_BYTES) / 2
+        val samples = FloatArray(frames)
+        var offset = HEADER_BYTES
+        for (index in 0 until frames) {
+            val value = ((bytes[offset].toInt() and 0xFF) or
+                (bytes[offset + 1].toInt() shl 8)).toShort()
+            samples[index] = value / 32768f
+            offset += 2
+        }
+        return samples
     }
 }

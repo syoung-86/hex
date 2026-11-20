@@ -1,8 +1,9 @@
 # Android Plan (personal build)
 
-**Status:** Planning; M0 is scaffolded in [`../../android/`](../../android/README.md)
-and builds (`assembleDebug`, unit tests, and `lintDebug` pass). Device checks
-are pending. The work log, evidence, and the M0 checklist live in
+**Status:** Planning; M0 is installed on the 9a and recording works, and M1's
+engine is wired in [`../../android/`](../../android/README.md) with the Parakeet
+CTC model pushed. The on-device transcription measurement is pending. The work
+log, evidence, and device checklist live in
 [`../../android/HANDOFF.md`](../../android/HANDOFF.md). This is a personal,
 single-device build for one Pixel 9a,
 installed by `adb` and used by nobody else. It is not a Hex platform, has no
@@ -333,6 +334,12 @@ bumps to 36 with the next toolchain update.
 **M1 — Engine (2–3 days).** Import the 110M model; transcribe a bundled WAV and
 then live mic. Evidence: real-time factor, RSS, cold load time, and the
 release-to-text number for 3 s, 5 s, and 15 s clips.
+
+Wired: sherpa-onnx `v1.13.5` (JitPack), Parakeet TDT-CTC 110M int8 as a single
+131 MB ONNX pushed with `adb` into app-private storage; a Transcribe action
+per recording and an Engine card (Refresh, Unload, Transcribe last). The phone
+disconnected before the measurement; M1 is not done until the numbers are in
+[`android/HANDOFF.md`](../../android/HANDOFF.md).
 
 **M2 — Bubble and insertion (3–5 days).** Accessibility overlay bubble, focus
 detection, splice insertion, undo, password suppression, clipboard fallback.
