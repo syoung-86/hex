@@ -1,9 +1,10 @@
 # Android M0 handoff
 
 **Date:** 2026-11-20
-**State:** the plan and the M0 scaffold exist and build. Nothing has run on the
-phone yet. This file is the work log, the evidence, and the place to record the
-device results.
+**State:** M0 is installed on the 9a and recording works (the owner recorded a
+clip and confirmed it). Backgrounded recording with the foreground service also
+passes. The remaining device checks are still open. This file is the work log,
+the evidence, and the place to record the device results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -86,13 +87,26 @@ the phone.
 
 | Check | Result |
 | --- | --- |
-| Dot row flat in silence, moves with speech | |
-| 5 s file is 160,044 bytes and plays | |
-| Service + record + Home + lock 10 s still saves | |
-| Stop after 0.2 s gives the short-capture error | |
-| 90 s recording stops at 60 s (~1.92 MB) | |
-| Recording works with the service stopped | |
-| Bluetooth headset: which mic wins | |
+| Dot row flat in silence, moves with speech | not observed yet |
+| 5 s file is 160,044 bytes and plays | format and length verified; playback not tried |
+| Service + record + Home + lock 10 s still saves | Home pass; lock not tried |
+| Stop after 0.2 s gives the short-capture error | not tried |
+| 90 s recording stops at 60 s (~1.92 MB) | not tried |
+| Recording works with the service stopped | not tried |
+| Bluetooth headset: which mic wins | not tried |
+
+### First device run (2026-11-20)
+
+- `./scripts/setup.sh` installed the debug APK, granted the microphone and
+  notifications, and whitelisted battery; the app launches and renders.
+- Two test captures saved: 10.8 s (346,280 B) and 5.2 s (167,720 B).
+- The pulled 5.2 s file is RIFF PCM: 16,000 Hz, mono, 16-bit, 83,838 frames,
+  5.24 s. It was near-silent (peak 0.4% FS), consistent with a quiet room; it
+  is not evidence of a dead microphone.
+- The 5.2 s capture happened with Hex backgrounded: the service stayed
+  `isForeground=true`, `types=0x00000080` (microphone), and the WAV still
+  finished. This is the M0 question answered.
+- The owner recorded a 1.9 s clip by hand and confirmed it worked.
 
 ## Research behind the plan
 
@@ -167,4 +181,5 @@ the order and evidence defined in the plan.
 ## Changelog
 
 - 2026-11-20: wrote the plan; scaffolded M0; verified build, tests, and lint;
-  recorded the unanswered device checks.
+  installed on the 9a; recorded foreground, backgrounded, and hand-made clips;
+  background recording with the foreground service passed.
