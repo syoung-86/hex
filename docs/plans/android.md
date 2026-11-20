@@ -2,8 +2,9 @@
 
 **Status:** M0 and M1 are done on the 9a: capture and the foreground service
 work, and Parakeet TDT-CTC 110M transcribes on-device (987 ms cold load,
-36–55× realtime, +179 MB RSS). M2, the accessibility bubble and insertion, is
-next. The work log, measured numbers, and device checklist live in
+36–55× realtime, +179 MB RSS). M2 is built (accessibility bubble, insertion,
+undo) and waiting for the manual accessibility enable. The work log, measured
+numbers, and device checklist live in
 [`../../android/HANDOFF.md`](../../android/HANDOFF.md). This is a personal,
 single-device build for one Pixel 9a,
 installed by `adb` and used by nobody else. It is not a Hex platform, has no
@@ -349,6 +350,11 @@ clip is far under the 1.2 s target. Detail in
 detection, splice insertion, undo, password suppression, clipboard fallback.
 Evidence: successful inserts in Messages, Gmail, Chrome, Slack, Discord, a
 Compose app, and a WebView; a list of the ones that failed and why.
+
+Built: `HexAccessibilityService` + `BubbleView` + `Inserter`, the setup card,
+and a test field. Build, tests, and lint pass. The service toggle is manual
+(`adb` cannot enable it on this sideloaded build) and the device flow is still
+to run; M2 is not done until items 7–12 in `android/README.md` pass.
 
 **M3 — Activation (2–3 days).** Quick Tap, QS tile, notification action,
 volume-hold, and (optionally) the assistant role. Evidence: each trigger

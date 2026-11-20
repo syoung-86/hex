@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Hex</string>
+    <string name="accessibility_label">Hex dictation</string>
+    <string name="accessibility_description">Shows the Hex bubble over text fields and inserts dictation at the cursor.</string>
 </resources>

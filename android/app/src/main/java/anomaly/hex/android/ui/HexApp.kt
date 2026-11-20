@@ -1,6 +1,7 @@
 package anomaly.hex.android.ui
 
 import android.Manifest
+import android.accessibilityservice.AccessibilityServiceInfo
 import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
@@ -8,6 +9,8 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.media.MediaPlayer
 import android.os.Build
+import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -34,6 +37,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -96,6 +101,7 @@ fun HexApp() {
             ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
     }
+    val accessibilityOn = remember(permissionTick) { accessibilityEnabled(context) }
 
     val micPermission =
         rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
@@ -115,6 +121,7 @@ fun HexApp() {
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
     var engineTick by remember { mutableIntStateOf(0) }
     var transcription by remember { mutableStateOf(TranscribeState()) }
+    var testText by remember { mutableStateOf("") }
     val scope = rememberCoroutineScope()
 
     fun stopPlayback() {
@@ -247,7 +254,7 @@ fun HexApp() {
                     color = HexColors.textBase,
                 )
                 Spacer(Modifier.width(10.dp))
-                Chip("M1 · on-device")
+                Chip("M2 · bubble")
                 Spacer(Modifier.weight(1f))
                 Text(
                     Build.MODEL,
@@ -278,6 +285,57 @@ fun HexApp() {
                     onAction = {
                         notificationPermission.launch(Manifest.permission.POST_NOTIFICATIONS)
                     },
+                )
+            }
+
+            SectionCard(
+                title = "Bubble",
+                trailing = { Chip(if (accessibilityOn) "on" else "off") },
+            ) {
+                StatusRow(
+                    title = "Accessibility service",
+                    detail = if (accessibilityOn) {
+                        "Enabled; the bubble appears over text fields"
+                    } else {
+                        "Off; needed for the bubble and insertion"
+                    },
+                    ok = accessibilityOn,
+                    action = if (accessibilityOn) null else "Open",
+                    onAction = {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    },
+                )
+                if (!accessibilityOn) {
+                    Text(
+                        "Android 15+: if Hex is greyed out in Accessibility, open " +
+                            "Settings → Apps → Hex → ⋮ → Allow restricted settings first.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = HexColors.textMuted,
+                    )
+                }
+                Text(
+                    "Focus the test field below or any text field. Hold the bubble to talk; " +
+                        "release to insert. Tap it for hands-free.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = HexColors.textMuted,
+                )
+                OutlinedTextField(
+                    value = testText,
+                    onValueChange = { testText = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text("Test insertion") },
+                    textStyle = MaterialTheme.typography.bodyLarge,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedTextColor = HexColors.textBase,
+                        unfocusedTextColor = HexColors.textBase,
+                        focusedContainerColor = HexColors.layer02,
+                        unfocusedContainerColor = HexColors.layer02,
+                        focusedBorderColor = HexColors.borderStrong,
+                        unfocusedBorderColor = HexColors.borderWeak,
+                        cursorColor = HexColors.accent,
+                        focusedLabelColor = HexColors.textMuted,
+                        unfocusedLabelColor = HexColors.textFaint,
+                    ),
                 )
             }
 
@@ -711,4 +769,12 @@ private fun formatBytes(bytes: Long): String = when {
     bytes >= 1_000_000 -> "%.1f MB".format(Locale.US, bytes / 1_000_000.0)
     bytes >= 1_000 -> "%.0f kB".format(Locale.US, bytes / 1_000.0)
     else -> "$bytes B"
+}
+
+private fun accessibilityEnabled(context: Context): Boolean = try {
+    context.getSystemService(AccessibilityManager::class.java)
+        .getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        .any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+} catch (_: Exception) {
+    false
 }

@@ -1,9 +1,9 @@
-# Hex for Android (personal M1)
+# Hex for Android (personal M2)
 
 The personal, single-device Pixel 9a build in
 [`../docs/plans/android.md`](../docs/plans/android.md). M0 proved capture and
-the foreground service. M1 adds the on-device engine; there is still **no
-accessibility service and no bubble**.
+the foreground service, M1 added the on-device engine, and M2 adds the
+accessibility bubble that inserts into the focused field.
 
 Current state, evidence, and next steps: [`HANDOFF.md`](HANDOFF.md).
 
@@ -17,6 +17,11 @@ What works:
   backgrounding and screen lock
 - on-device transcription with Parakeet TDT-CTC 110M int8, with load, run, and
   real-time timings shown under each recording
+- an accessibility bubble over any focused text field: hold to talk, release to
+  insert, tap for hands-free, tap after insertion to undo
+
+The bubble is new and has not been exercised on the phone yet; enable the
+service and run the M2 items in the checklist below.
 
 ## Build
 
@@ -72,6 +77,37 @@ quantized by the sherpa-onnx project. Attribution matters if this ever leaves
 the phone. The Engine card's **Refresh** button re-checks the files; **Unload**
 frees the ~131 MB of weights.
 
+## M2: the bubble
+
+The bubble is an accessibility overlay (`TYPE_ACCESSIBILITY_OVERLAY`), so it
+never takes focus from the app behind it and needs no "display over other
+apps" grant. Enable the service once:
+
+1. **Settings → Apps → Hex → ⋮ → Allow restricted settings** (Android 15+
+   hides accessibility from sideloaded apps until this is on).
+2. **Settings → Accessibility → Hex dictation → On**.
+
+The Hex **Bubble** card shows the live state and opens Accessibility settings.
+`adb` cannot turn the service on for a sideloaded build; the two taps above are
+manual by design.
+
+Then focus the card's **Test insertion** field. The bubble appears above the
+keyboard:
+
+- press and hold to record, release to transcribe and insert
+- tap to start hands-free and tap again to stop
+- drag to move it (the position is remembered)
+- tap the "undo" state within 8 seconds to restore the field
+
+Insertion uses `ACTION_SET_TEXT` with the field's selection, adding a leading
+space when the cursor is mid-sentence. Fields whose text cannot be read, and
+fields that reject `ACTION_SET_TEXT`, fall back to the clipboard; the bubble
+shows a check or says it copied. Password, OTP, and card fields never show the
+bubble.
+
+If it misbehaves, `adb logcat -s HexM0` names the path (`inserted`, `pasted`,
+`copied`, or the error).
+
 ## Device checklist
 
 M0:
@@ -103,6 +139,19 @@ M1:
    after a transcription, then after Unload.
 6. Ten dictations in a row: no thermal throttle, no OOM, no growing latency.
 
+### M2 (after enabling the service)
+
+1. The Bubble card says `on`, and the service appears in Accessibility.
+2. The test field shows the bubble above the keyboard; holding it records and
+   releasing inserts at the cursor.
+3. A real app (Messages, Gmail, Chrome) gets the text at the cursor, with a
+   leading space when mid-sentence.
+4. A password field hides the bubble; a field that rejects `ACTION_SET_TEXT`
+   still gets the transcript on the clipboard.
+5. Undo restores the field exactly, including its previous selection.
+6. Switching apps mid-dictation copies instead of inserting into the wrong
+   field.
+
 Pull a debuggable build's files:
 
 ```sh
@@ -116,9 +165,10 @@ debug.
 ## Notes
 
 - The service is started by the visible activity because Android 12+ blocks
-  microphone foreground-service starts from the background. The next milestone
-  reuses this one service for every trigger.
-- `TYPE_ACCESSIBILITY_OVERLAY` and the bubble are deliberately absent here;
-  they arrive with the accessibility service in M2.
-- VAD and live/streaming text are not part of M1; it transcribes a finished
-  WAV. Nothing is downloaded by the app.
+  microphone foreground-service starts from the background. The bubble's tap
+  starts it, and the same service is reused for every trigger.
+- The bubble is `TYPE_ACCESSIBILITY_OVERLAY`, not `SYSTEM_ALERT_WINDOW`; there
+  is still no overlay permission.
+- VAD and live/streaming text are not implemented; the bubble transcribes the
+  finished WAV and deletes it after a successful insertion or copy. Nothing is
+  downloaded by the app.

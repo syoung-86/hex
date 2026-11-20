@@ -1,11 +1,10 @@
 # Android M0 handoff
 
 **Date:** 2026-11-20
-**State:** M0 and M1 both work on the 9a. Recording, the foreground service, and
-on-device Parakeet transcription are verified; a warm 4.4 s clip transcribes in
-90 ms (48.7× realtime) with a 987 ms cold load. M2 (the accessibility bubble)
-is next. This file is the work log, the evidence, and the place to record the
-device results.
+**State:** M0 and M1 are verified on the 9a. M2 (the accessibility bubble) is
+built and installed; its service needs the manual accessibility enable, so the
+bubble and insertion are not yet exercised on the phone. This file is the work
+log, the evidence, and the place to record the device results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -38,9 +37,10 @@ android/
   scripts/setup.sh          build, install, grant, launch
   scripts/doctor.sh         device, service, permissions, files, log
   app/                      one module
+    .../accessibility/      Inserter: focus, splice, clipboard fallback
     .../audio/              WavFile, Levels, Recorder, Recordings
     .../engine/             Engine (sherpa-onnx, Parakeet CTC)
-    .../service/            CaptureService (microphone FGS)
+    .../service/            CaptureService, HexAccessibilityService, BubbleView
     .../ui/                 HexTheme, HexApp, DotMeter
     .../HexApplication.kt   crash logging
     .../DebugLog.kt         bounded in-memory log + logcat
@@ -53,6 +53,10 @@ foreground service, and show a debug log.
 M1 adds: Parakeet TDT-CTC 110M int8 in the app's private storage, a Transcribe
 action on every recording, a transcript block with load/run/real-time numbers,
 and Unload/Refresh. It cannot insert text or show a bubble yet.
+
+M2 adds: the accessibility service, the `TYPE_ACCESSIBILITY_OVERLAY` bubble,
+focus and password handling, `ACTION_SET_TEXT` insertion with a clipboard
+fallback, eight-second undo, and the setup card's test field.
 
 ## Verified here (Linux, no phone attached)
 
@@ -83,10 +87,14 @@ cd android
   arm64
 - The model was pushed to the test phone and the sizes match; its hashes are
   in the README and below
+- M2: `assembleDebug`, 6 unit tests, and `lintDebug` (0 errors, 12 warnings)
+  pass. The manifest declares the accessibility service with
+  `isAccessibilityTool="true"`; `adb shell settings put secure
+  enabled_accessibility_services` is rejected for this sideloaded build, so
+  the on/off toggle has to be manual
 
-Not verified yet: on-device transcription (the phone disconnected before the
-measurement), screen-locked capture, Bluetooth route behavior, and battery
-cost.
+Not verified yet: the bubble and insertion flow (service not enabled),
+screen-locked capture, Bluetooth route behavior, and battery cost.
 
 ## First run on the 9a
 
@@ -114,6 +122,12 @@ cost.
 | Model `test_wavs/0.wav` | pass, exact sentence |
 | RSS after transcribe / after Unload | pass, 482 / 303 MB RSS |
 | Ten dictations, no throttle/OOM | not tried |
+| Bubble card says on / service enabled | pending manual enable |
+| Bubble over the test field | pending |
+| Insert into a real app | pending |
+| Password field hides the bubble | pending |
+| Undo restores the field | pending |
+| Switch apps mid-dictation | pending |
 
 ### First device run (2026-11-20)
 
@@ -216,11 +230,50 @@ Measured on the 9a: warm decode 90–136 ms for 4–7 s clips (36–55× realtim
 audio. Details are in the measurement table above.
 
 One M1 cleanup remains: feed the live recorder's PCM straight into the engine
-instead of round-tripping through a WAV. That can happen with M2, since the
-bubble will record and insert in one flow.
+instead of round-tripping through a WAV. That can happen with M3, since the
+bubble already records and inserts in one flow.
 
-Next is M2 (accessibility bubble and insertion), then M3 (activation), with the
-order and evidence defined in the plan.
+## M2 bubble (built, awaiting the manual enable)
+
+Design:
+
+- `HexAccessibilityService` owns the bubble and the only insertion path. It
+  tracks the focused editable node from accessibility events (debounced 120 ms)
+  and keeps it as the capture target.
+- The bubble is a `TYPE_ACCESSIBILITY_OVERLAY` window with
+  `FLAG_NOT_FOCUSABLE`, so the app behind it keeps input focus and no
+  "display over other apps" grant is needed. It sits above the IME (the
+  service reads the IME window's bounds), is draggable, and remembers its
+  position.
+- `BubbleView` is a 76 dp custom view: idle/listening/busy/inserted/error,
+  level arc, timer, check, and undo. Tap toggles hands-free, a 250 ms hold is
+  push-to-talk, a drag moves it, and a tap in the undo window restores.
+- `Inserter` reads the node's text and selection, splices the transcript at the
+  cursor with leading-space rules, and writes it with `ACTION_SET_TEXT` plus a
+  selection. If the text is unreadable or the action is refused it focuses the
+  node, pastes from the clipboard, and leaves the transcript there. Password,
+  OTP, and card fields are suppressed.
+- After a successful insert, the WAV is deleted and "undo" stays available for
+  eight seconds; the previous text and selection are restored with
+  `ACTION_SET_TEXT`. A pasted or copied result has no undo.
+- The setup card shows the live accessibility state, the restricted-settings
+  path, and a **Test insertion** `OutlinedTextField` so the bubble can be
+  exercised without leaving Hex.
+
+Enable it by hand (the shell cannot):
+
+1. Settings → Apps → Hex → ⋮ → **Allow restricted settings**.
+2. Settings → Accessibility → **Hex dictation** → On.
+
+Then run M2 items 7–12 in the README: test field, a real app, a password field,
+undo, and switching apps mid-dictation.
+
+Known limits: a WAV round-trip rather than live PCM; no VAD auto-stop; undo only
+after `ACTION_SET_TEXT`; the clipboard fallback overwrites the user's clipboard;
+switching apps mid-dictation can end in `Copied` rather than insertion.
+
+Next is M3 (activation), then M4 (polish), with the order and evidence defined
+in the plan.
 
 ## Open items
 
@@ -242,3 +295,6 @@ order and evidence defined in the plan.
 - 2026-11-20: wired M1 (sherpa-onnx + Parakeet CTC 110M), pushed the model,
   built the 54 MB APK, and measured it: 987 ms cold load, 78–335 ms decode for
   3–15 s clips (36–55× realtime), +179 MB RSS, exact reference transcript.
+- 2026-11-20: built M2 (accessibility service, bubble, insertion, undo, setup
+  card); build, tests, and lint pass. The accessibility toggle is manual and
+  the device flow is not yet exercised.
