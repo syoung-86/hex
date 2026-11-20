@@ -7,6 +7,7 @@ import android.os.Bundle
 import android.text.InputType
 import android.view.accessibility.AccessibilityNodeInfo
 import anomaly.hex.android.DebugLog
+import java.util.Locale
 
 /**
  * M2's text delivery. The accessibility node is the only handle Hex has on
@@ -69,11 +70,39 @@ object Inserter {
         if (isSensitive(node)) return Outcome.Failed("Sensitive field")
         if (!node.refresh()) return Outcome.Failed("Field is gone")
 
-        // A field whose text cannot be read cannot be spliced safely; paste.
-        val existing = node.text?.toString() ?: return paste(context, node, clean)
+        // Some apps expose their placeholder as the node's text while the field
+        // is empty (WhatsApp's "Message"). Treat that as empty so the
+        // transcript never gets glued to the hint.
+        val raw = node.text?.toString() ?: return paste(context, node, clean)
+        val hint = node.hintText?.toString()?.trim()
+        val description = node.contentDescription?.toString()?.trim()
+        var existing = raw
+        val placeholder = isPlaceholder(existing)
+        if (existing.isNotEmpty() &&
+            (placeholder ||
+                (hint != null && hint.isNotEmpty() && existing.trim() == hint) ||
+                (description != null && description.isNotEmpty() &&
+                    existing.trim() == description))
+        ) {
+            existing = ""
+        }
 
-        val start = node.textSelectionStart.coerceIn(0, existing.length)
-        val end = node.textSelectionEnd.coerceIn(start, existing.length)
+        val start = if (existing.isEmpty()) {
+            0
+        } else {
+            node.textSelectionStart.coerceIn(0, existing.length)
+        }
+        val end = if (existing.isEmpty()) {
+            0
+        } else {
+            node.textSelectionEnd.coerceIn(start, existing.length)
+        }
+        DebugLog.log(
+            "Insert",
+            "${node.packageName} text=${raw.length}->${existing.length} " +
+                "hint=${hint?.length ?: -1} desc=${description?.length ?: -1} " +
+                "placeholder=$placeholder sel=$start/$end",
+        )
         val insertion = spaced(existing, start, end, clean)
         val merged = existing.substring(0, start) + insertion + existing.substring(end)
         val cursor = start + insertion.length
@@ -135,6 +164,9 @@ object Inserter {
         return if (pasted) Outcome.Pasted else Outcome.Copied
     }
 
+    private fun isPlaceholder(text: String): Boolean =
+        text.trim().lowercase(Locale.ROOT) in PLACEHOLDERS
+
     private fun spaced(existing: String, start: Int, end: Int, text: String): String {
         if (start != end || text.isEmpty()) return text
         val before = existing.getOrNull(start - 1)
@@ -145,4 +177,19 @@ object Inserter {
             first !in ".,!?;:)]}\"'"
         return if (needsSpace) " $text" else text
     }
+
+    private val PLACEHOLDERS = setOf(
+        "message",
+        "message…",
+        "message...",
+        "type a message",
+        "type a message…",
+        "type a message...",
+        "send a message",
+        "send a message…",
+        "write a message",
+        "write a message…",
+        "add a caption",
+        "add a caption…",
+    )
 }

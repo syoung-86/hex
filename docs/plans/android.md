@@ -2,11 +2,12 @@
 
 **Status:** M0, M1, and the M2 bubble work on the 9a. Capture and the
 foreground service work; Parakeet TDT-CTC 110M transcribes on-device (987 ms
-cold load, 36–55× realtime, +179 MB RSS); the bubble inserts at the cursor in
-the test field and undo restores it. Real-app insertion and the remaining M2
-checks are next. The work log, measured numbers, and device checklist live in
-[`../../android/HANDOFF.md`](../../android/HANDOFF.md). This is a personal,
-single-device build for one Pixel 9a,
+cold load, 36–55× realtime, +179 MB RSS); the bubble inserts and undoes in
+Hex's test field, WhatsApp, and Gmail, including a fix for composers that
+expose their placeholder as text. Password suppression and app switching are
+the remaining M2 checks. The work log, measured numbers, and device checklist
+live in [`../../android/HANDOFF.md`](../../android/HANDOFF.md). This is a
+personal, single-device build for one Pixel 9a,
 installed by `adb` and used by nobody else. It is not a Hex platform, has no
 distribution channel, no updater, and no support surface. Nothing here changes
 the desktop or iOS contracts, and nothing here ships in a release.
@@ -352,10 +353,11 @@ Evidence: successful inserts in Messages, Gmail, Chrome, Slack, Discord, a
 Compose app, and a WebView; a list of the ones that failed and why.
 
 Built: `HexAccessibilityService` + `BubbleView` + `Inserter`, the setup card,
-and a test field. Build, tests, and lint pass. Verified on the 9a in the test
-field: two insertions at the cursor and a working undo. Real-app insertion, a
-password field, and switching apps mid-dictation are still open; M2 is not done
-until items 3–6 in `android/README.md` pass.
+and a test field. Build, tests, and lint pass. Verified on the 9a in Hex's test
+field, WhatsApp, and Gmail: insertion at the cursor and a working undo, plus a
+fix for composers that expose their placeholder as text. A password field and
+switching apps mid-dictation are still open; M2 is not done until items 3–6 in
+`android/README.md` pass.
 
 **M3 — Activation (2–3 days).** Quick Tap, QS tile, notification action,
 volume-hold, and (optionally) the assistant role. Evidence: each trigger

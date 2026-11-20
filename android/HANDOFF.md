@@ -1,11 +1,11 @@
 # Android M0 handoff
 
 **Date:** 2026-11-20
-**State:** M0, M1, and the M2 bubble work on the 9a. The service is enabled, two
-bubble dictations inserted at the cursor (21 characters; 107 ms and 193 ms of
-decode on a warm model), and undo restored the field. Real-app, password, and
-app-switch checks are still open. This file is the work log, the evidence, and
-the place to record the device results.
+**State:** M0, M1, and M2 work on the 9a. The bubble inserts at the cursor in
+Hex's test field, WhatsApp, and Gmail, and undo restores the field. A composer
+placeholder is no longer treated as text. Password fields and app switching are
+the remaining M2 checks. This file is the work log, the evidence, and the place
+to record the device results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -125,9 +125,9 @@ screen-locked capture, Bluetooth route behavior, and battery cost.
 | Ten dictations, no throttle/OOM | not tried |
 | Bubble card says on / service enabled | pass |
 | Bubble over the test field | pass |
-| Insert into a real app | not tried |
+| Insert into a real app | pass (WhatsApp, Gmail) |
 | Password field hides the bubble | not tried |
-| Undo restores the field | pass |
+| Undo restores the field | pass (test field, Gmail) |
 | Switch apps mid-dictation | not tried |
 
 ### First device run (2026-11-20)
@@ -179,7 +179,15 @@ All runs are on the Pixel 9a, model loaded in the app process, four threads.
   model. The WAVs were deleted after insertion.
 - `Bubble: undo restored` confirms the eight-second undo.
 - The owner confirmed the bubble, insertion, and undo behave well.
-- Still to try in another app, a password field, and while switching apps.
+- WhatsApp exposed its empty composer as the field's text: 7 characters
+  ("Message") with `hint=-1`, so the first build produced "hello.message".
+  `Inserter` now treats common composer placeholders as empty, and logs the
+  node shape (`text=7->0 ... placeholder=true`) so an unknown one is visible.
+  The owner confirmed WhatsApp now inserts just the transcript.
+- Gmail: `com.google.android.gm|editor`, five insertions of 2–12 characters in
+  104–183 ms, and three `undo restored`. The owner confirmed it works.
+- Still to try: a password field, switching apps mid-dictation, and a field that
+  refuses `ACTION_SET_TEXT` (the clipboard fallback).
 
 ## Research behind the plan
 
@@ -247,12 +255,13 @@ One M1 cleanup remains: feed the live recorder's PCM straight into the engine
 instead of round-tripping through a WAV. That can happen with M3, since the
 bubble already records and inserts in one flow.
 
-## M2 bubble (works in the test field)
+## M2 bubble (works in the test field, WhatsApp, and Gmail)
 
-Verified on the 9a: the service enables, the bubble appears over the test field,
-holding it records, releasing inserts at the cursor, and undo restores the
-field. The log records two insertions (21 characters, 107 ms and 193 ms of
-decode) and `undo restored`. Real-app insertion, password suppression, and
+Verified on the 9a: the service enables, the bubble appears over the focused
+field, holding it records, releasing inserts at the cursor, and undo restores
+the field. The log records insertions in Hex's test field (21 characters), in
+WhatsApp (after the placeholder fix), and in Gmail (2–12 characters in
+104–183 ms), with several `undo restored` entries. Password suppression and
 app-switching are still to check.
 
 Design:
@@ -320,3 +329,5 @@ in the plan.
   the device flow is not yet exercised.
 - 2026-11-20: enabled the service and verified the bubble in the test field:
   two insertions at the cursor and a working undo.
+- 2026-11-20: fixed composer placeholders exposed as field text (WhatsApp's
+  "Message"); verified insertion and undo in WhatsApp and Gmail.

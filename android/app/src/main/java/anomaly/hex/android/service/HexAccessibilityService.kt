@@ -47,6 +47,7 @@ class HexAccessibilityService : AccessibilityService(), BubbleView.Listener {
     private var generation = 0
     private var undo: Inserter.Before? = null
     private var undoAt = 0L
+    private var lastFocusSignature = ""
 
     private val refresh = Runnable { refreshFocus() }
     private val undoExpiry = Runnable { expireUndo() }
@@ -88,8 +89,15 @@ class HexAccessibilityService : AccessibilityService(), BubbleView.Listener {
         val focused = Inserter.focusedEditable(rootInActiveWindow)
         if (focused == null) {
             target = null
+            lastFocusSignature = ""
             hideBubble()
         } else {
+            val signature = "${focused.packageName}|${focused.viewIdResourceName}|" +
+                "${focused.text?.length}|${focused.hintText?.length}"
+            if (signature != lastFocusSignature) {
+                lastFocusSignature = signature
+                DebugLog.log("Focus", signature)
+            }
             target = focused
             showBubble()
         }

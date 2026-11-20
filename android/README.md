@@ -101,10 +101,12 @@ keyboard:
 - tap the "undo" state within 8 seconds to restore the field
 
 Insertion uses `ACTION_SET_TEXT` with the field's selection, adding a leading
-space when the cursor is mid-sentence. Fields whose text cannot be read, and
-fields that reject `ACTION_SET_TEXT`, fall back to the clipboard; the bubble
-shows a check or says it copied. Password, OTP, and card fields never show the
-bubble.
+space when the cursor is mid-sentence. Some composers expose their placeholder
+as the field's text ("Message" in WhatsApp); common ones are treated as empty,
+and the `Insert` log shows the raw length and `placeholder=` so an unknown one
+is easy to add. Fields whose text cannot be read, and fields that reject
+`ACTION_SET_TEXT`, fall back to the clipboard; the bubble shows a check or says
+it copied. Password, OTP, and card fields never show the bubble.
 
 If it misbehaves, `adb logcat -s HexM0` names the path (`inserted`, `pasted`,
 `copied`, or the error).
