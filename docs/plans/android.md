@@ -1,9 +1,9 @@
 # Android Plan (personal build)
 
-**Status:** Planning; M0 is installed on the 9a and recording works, and M1's
-engine is wired in [`../../android/`](../../android/README.md) with the Parakeet
-CTC model pushed. The on-device transcription measurement is pending. The work
-log, evidence, and device checklist live in
+**Status:** M0 and M1 are done on the 9a: capture and the foreground service
+work, and Parakeet TDT-CTC 110M transcribes on-device (987 ms cold load,
+36–55× realtime, +179 MB RSS). M2, the accessibility bubble and insertion, is
+next. The work log, measured numbers, and device checklist live in
 [`../../android/HANDOFF.md`](../../android/HANDOFF.md). This is a personal,
 single-device build for one Pixel 9a,
 installed by `adb` and used by nobody else. It is not a Hex platform, has no
@@ -337,8 +337,12 @@ release-to-text number for 3 s, 5 s, and 15 s clips.
 
 Wired: sherpa-onnx `v1.13.5` (JitPack), Parakeet TDT-CTC 110M int8 as a single
 131 MB ONNX pushed with `adb` into app-private storage; a Transcribe action
-per recording and an Engine card (Refresh, Unload, Transcribe last). The phone
-disconnected before the measurement; M1 is not done until the numbers are in
+per recording and an Engine card (Refresh, Unload, Transcribe last).
+
+Measured on the 9a: 987 ms cold load; 78 ms for 3.0 s, 90 ms for 4.4 s,
+136 ms for 7.4 s, and 335 ms for 14.9 s (36–55× realtime); +179 MB RSS while
+loaded; the model's 7.4 s reference audio is transcribed exactly. A warm 5 s
+clip is far under the 1.2 s target. Detail in
 [`android/HANDOFF.md`](../../android/HANDOFF.md).
 
 **M2 — Bubble and insertion (3–5 days).** Accessibility overlay bubble, focus

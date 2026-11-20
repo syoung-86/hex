@@ -1,12 +1,11 @@
 # Android M0 handoff
 
 **Date:** 2026-11-20
-**State:** M0 is installed on the 9a and recording works (the owner recorded a
-clip and confirmed it). Backgrounded recording with the foreground service also
-passes. M1's engine is wired, the Parakeet CTC model is pushed to the app's
-private storage, and the APK builds; the transcription measurement is waiting
-for the phone to reconnect. This file is the work log, the evidence, and the
-place to record the device results.
+**State:** M0 and M1 both work on the 9a. Recording, the foreground service, and
+on-device Parakeet transcription are verified; a warm 4.4 s clip transcribes in
+90 ms (48.7× realtime) with a 987 ms cold load. M2 (the accessibility bubble)
+is next. This file is the work log, the evidence, and the place to record the
+device results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -109,12 +108,12 @@ cost.
 | 90 s recording stops at 60 s (~1.92 MB) | not tried |
 | Recording works with the service stopped | not tried |
 | Bluetooth headset: which mic wins | not tried |
-| Engine card says ready / Installed · 131 MB | model files present; UI not re-checked |
-| Transcribe a speech clip | pending phone reconnect |
-| Cold load after Unload | pending |
-| Model `test_wavs/0.wav` | pending |
-| RSS after transcribe / after Unload | pending |
-| Ten dictations, no throttle/OOM | pending |
+| Engine card says ready / Installed · 131 MB | pass |
+| Transcribe a speech clip | pass |
+| Cold load after Unload | pass, 987 ms |
+| Model `test_wavs/0.wav` | pass, exact sentence |
+| RSS after transcribe / after Unload | pass, 482 / 303 MB RSS |
+| Ten dictations, no throttle/OOM | not tried |
 
 ### First device run (2026-11-20)
 
@@ -128,6 +127,31 @@ cost.
   `isForeground=true`, `types=0x00000080` (microphone), and the WAV still
   finished. This is the M0 question answered.
 - The owner recorded a 1.9 s clip by hand and confirmed it worked.
+
+### M1 measurement (2026-11-20)
+
+All runs are on the Pixel 9a, model loaded in the app process, four threads.
+"Load" is the model load inside that call; warm runs show 0.
+
+| Clip | Audio | Decode | Speed | Load |
+| --- | --- | --- | --- | --- |
+| Reference, 3.0 s | 3,000 ms | 78 ms | 38.5× | warm |
+| Owner's clip, first run | 4,379 ms | 124 ms | 35.3× | 1,146 ms |
+| Owner's clip, after Unload | 4,379 ms | 90 ms | 48.7× | 987 ms |
+| Reference, 7.4 s | 7,435 ms | 136 ms | 54.7× | warm |
+| Reference, 14.9 s | 14,870 ms | 335 ms | 44.4× | warm |
+
+- Acceptance was a warm 5 s clip under 1.2 s; the 7.4 s clip is 136 ms.
+- Accuracy: the 7.4 s reference is exact — "Well, I don't wish to see it any
+  more, observed Phoebe, turning away her eyes. It is certainly very like the
+  old portrait." The owner's casual 4.4 s clip came back as "U this is a test
+  for the M one buildild": two errors (a leading "U", and "buildild" for
+  "build"). Short, quiet, informal speech is the hard case; the reference
+  shows the model itself is fine.
+- Memory: loaded, TOTAL PSS 367 MB and RSS 482 MB (native heap 228 MB);
+  after Unload, PSS 188 MB and RSS 303 MB. The model costs about 179 MB.
+- The Engine card, Transcribe action, transcript block, and Unload/Refresh all
+  worked through the UI; no crash or jank.
 
 ## Research behind the plan
 
@@ -168,9 +192,9 @@ One experienced Android dev: MVP (bubble, insertion, engine, styles) about
 the comparison: about 23k lines of Swift, 37 commits, July–November 2026. The
 engine is off the shelf; insertion and activation polish are the project.
 
-## M1 engine (in progress)
+## M1 engine (done)
 
-Done:
+Wired:
 
 - sherpa-onnx `v1.13.5` from JitPack; only `arm64-v8a` is packaged, which
   keeps the debug APK at 54 MB.
@@ -187,19 +211,16 @@ Done:
   audio, load, and × realtime, and an Engine card with ready/missing,
   **Refresh**, **Unload**, and **Transcribe last**.
 
-Still to do on the phone:
+Measured on the 9a: warm decode 90–136 ms for 4–7 s clips (36–55× realtime),
+987 ms cold load, +179 MB RSS while loaded, exact text on the model's reference
+audio. Details are in the measurement table above.
 
-1. Reconnect, install the new APK, and tap **Refresh** (or force-stop and
-   relaunch) so the Engine card re-reads the files.
-2. Transcribe the owner's clip and the model's `test_wavs/0.wav`.
-3. Record cold load, run time, real-time factor, and RSS
-   (`adb shell dumpsys meminfo anomaly.hex.android`).
-4. Acceptance: a warm 5 s clip transcribes in under 1.2 s on the 9a.
-5. Then feed the live recorder's PCM straight into the engine instead of
-   round-tripping through a WAV.
+One M1 cleanup remains: feed the live recorder's PCM straight into the engine
+instead of round-tripping through a WAV. That can happen with M2, since the
+bubble will record and insert in one flow.
 
-After that, M2 (accessibility bubble and insertion), then M3 (activation), with
-the order and evidence defined in the plan.
+Next is M2 (accessibility bubble and insertion), then M3 (activation), with the
+order and evidence defined in the plan.
 
 ## Open items
 
@@ -219,4 +240,5 @@ the order and evidence defined in the plan.
   installed on the 9a; recorded foreground, backgrounded, and hand-made clips;
   background recording with the foreground service passed.
 - 2026-11-20: wired M1 (sherpa-onnx + Parakeet CTC 110M), pushed the model,
-  built the 54 MB APK; transcription measurement awaits the phone.
+  built the 54 MB APK, and measured it: 987 ms cold load, 78–335 ms decode for
+  3–15 s clips (36–55× realtime), +179 MB RSS, exact reference transcript.
