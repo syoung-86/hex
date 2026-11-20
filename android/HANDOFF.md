@@ -1,10 +1,11 @@
 # Android M0 handoff
 
 **Date:** 2026-11-20
-**State:** M0 and M1 are verified on the 9a. M2 (the accessibility bubble) is
-built and installed; its service needs the manual accessibility enable, so the
-bubble and insertion are not yet exercised on the phone. This file is the work
-log, the evidence, and the place to record the device results.
+**State:** M0, M1, and the M2 bubble work on the 9a. The service is enabled, two
+bubble dictations inserted at the cursor (21 characters; 107 ms and 193 ms of
+decode on a warm model), and undo restored the field. Real-app, password, and
+app-switch checks are still open. This file is the work log, the evidence, and
+the place to record the device results.
 
 - Plan: [`../docs/plans/android.md`](../docs/plans/android.md)
 - App: this directory; start with [`README.md`](README.md)
@@ -122,12 +123,12 @@ screen-locked capture, Bluetooth route behavior, and battery cost.
 | Model `test_wavs/0.wav` | pass, exact sentence |
 | RSS after transcribe / after Unload | pass, 482 / 303 MB RSS |
 | Ten dictations, no throttle/OOM | not tried |
-| Bubble card says on / service enabled | pending manual enable |
-| Bubble over the test field | pending |
-| Insert into a real app | pending |
-| Password field hides the bubble | pending |
-| Undo restores the field | pending |
-| Switch apps mid-dictation | pending |
+| Bubble card says on / service enabled | pass |
+| Bubble over the test field | pass |
+| Insert into a real app | not tried |
+| Password field hides the bubble | not tried |
+| Undo restores the field | pass |
+| Switch apps mid-dictation | not tried |
 
 ### First device run (2026-11-20)
 
@@ -166,6 +167,19 @@ All runs are on the Pixel 9a, model loaded in the app process, four threads.
   after Unload, PSS 188 MB and RSS 303 MB. The model costs about 179 MB.
 - The Engine card, Transcribe action, transcript block, and Unload/Refresh all
   worked through the UI; no crash or jank.
+
+### M2 device run (2026-11-20)
+
+- Enabled the service by hand: App info → Allow restricted settings →
+  Accessibility → Hex dictation. `settings get secure
+  enabled_accessibility_services` then listed
+  `anomaly.hex.android/.service.HexAccessibilityService`.
+- Two bubble dictations in the test field inserted 21 characters each; the log
+  shows `Bubble: inserted 21 chars in 107 ms` and `... in 193 ms` on a warm
+  model. The WAVs were deleted after insertion.
+- `Bubble: undo restored` confirms the eight-second undo.
+- The owner confirmed the bubble, insertion, and undo behave well.
+- Still to try in another app, a password field, and while switching apps.
 
 ## Research behind the plan
 
@@ -233,7 +247,13 @@ One M1 cleanup remains: feed the live recorder's PCM straight into the engine
 instead of round-tripping through a WAV. That can happen with M3, since the
 bubble already records and inserts in one flow.
 
-## M2 bubble (built, awaiting the manual enable)
+## M2 bubble (works in the test field)
+
+Verified on the 9a: the service enables, the bubble appears over the test field,
+holding it records, releasing inserts at the cursor, and undo restores the
+field. The log records two insertions (21 characters, 107 ms and 193 ms of
+decode) and `undo restored`. Real-app insertion, password suppression, and
+app-switching are still to check.
 
 Design:
 
@@ -298,3 +318,5 @@ in the plan.
 - 2026-11-20: built M2 (accessibility service, bubble, insertion, undo, setup
   card); build, tests, and lint pass. The accessibility toggle is manual and
   the device flow is not yet exercised.
+- 2026-11-20: enabled the service and verified the bubble in the test field:
+  two insertions at the cursor and a working undo.

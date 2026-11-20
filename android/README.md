@@ -20,8 +20,9 @@ What works:
 - an accessibility bubble over any focused text field: hold to talk, release to
   insert, tap for hands-free, tap after insertion to undo
 
-The bubble is new and has not been exercised on the phone yet; enable the
-service and run the M2 items in the checklist below.
+The bubble is verified in Hex's own test field, including undo. It is still to
+be tried in another app, a password field, and while switching apps; those are
+the remaining M2 checklist items.
 
 ## Build
 
