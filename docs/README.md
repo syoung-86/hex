@@ -56,6 +56,8 @@ override shipped behavior.
   evaluation of Apple SpeechTranscriber vs Moonshine for live meeting drafts.
 - [`plans/granola-import.md`](plans/granola-import.md): research on importing
   historical Granola meetings into `hex mcp`.
+- [`plans/android.md`](plans/android.md): personal single-device Pixel 9a
+  build; activation, insertion, engine, and milestones. Not a Hex platform.
 
 When a plan disagrees with `AGENTS.md` about shipped behavior, update the plan.
 
